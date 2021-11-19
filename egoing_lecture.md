@@ -58,6 +58,11 @@
 
 - 내구성이 높음을 보증
 
+- 버전관리 기능을 보유하고 있음
+
+- 라이프 사이클 기능 보유
+  - 일정 기간을 설정하여, 오브젝트가 저장되는 시점부터 계산, 설정 기간이 되면 해당 오브젝트를 Standard -> Standart IA 또는 Standard IA -> Glacier 버킷으로 저장 위치를 자동 변경해주는 기능
+
 ### 구성요소
 
 - 버킷
@@ -157,3 +162,108 @@
 
 - 요약  
   <img src="./imgs/egoing/s3_price.png" width="700">
+
+## Cloud Front
+
+- Cloud Front의 역할
+
+  - Cache server + CDN (Content Delivery Network)
+  - Cache server 기능, CDN 기능 둘 다 Cloud Front 사용 순간 default로 적용
+
+- Cache server?
+
+  - 사용자 요청에 따른 (대체로 정적인) 페이지를 WAS에서 받아놓고, 이후 같은 요청이라면 WAS가 아닌 Cache에 저장된 페이지를 사용자의 요청에 대한 응답으로 보내주는 서버
+
+- CDN?
+  - 전세계 어디서든 비슷하고 빠른시간 내에 접속할 수 있게 만들어주는 서비스
+
+### Cloud Front 생성
+
+- Origin: WAS
+
+- Distribution: Cloud Front
+
+### Cache server 설정
+
+- Origin의 내용이 바뀌어도 Distribution에서는 반영이 되지 않는 문제 발생
+
+  - Distribution의 설정을 변경하여 refresh를 더 자주 해야함
+
+- 캐시 설정 변경
+
+  - Distribution - Behaviors
+    - path Pattern: 해당 패턴으로 들어오는 모든 result를 캐싱한다
+    - Object Caching
+      - Use Origin Cache Header: Origin의 Header의 Cache-Control 속성을 보고 Cache의 유효시간을 설정
+      - Customize
+        - Minimum TTL: 최소 Cache 유효시간 (Origin의 Cache-Control 속성의 유효시간이 더 작더라도 Minimum TTL의 유효시간을 가짐)
+        - Maximum TTL: 최대 Cache 유효시간 (Origin의 Cache-Control 속성의 유효시간이 더 크더라도 Maximum TTL의 유효시간을 가짐)
+        - Default TTL: 기본 Cache 유효시간 (Origin에서 Cache-Control 속성을 지정하지 않았을 경우)
+    - Query String Forwarding and Caching
+      - None: http(s)의 쿼리 요청에 대한 Cache 적용하지 않음
+      - Forward all, cache based on all: http(s)의 모든 쿼리 요청에 대한 Cache 적용
+
+- 요청 및 응답 순서
+
+  - Web Browser에서 사용자 요청
+  - Cloud Front가 받고, 해당 요청에 대한 페이지가 없다면, WAS로 요청
+  - WAS는 해당 페이지 및 Header에 <u>Cache-Control</u> 속성을 포함하여 응답
+    - Cache-Control: max-age=x
+    - x: sec
+    - "해당 시간 동안은 응답한 페이지가 유효하니, 요청하지 말 것" 의미
+  - Cloud Front 또한 웹페이지 및 Cache-Control 속성을 포함하여 Web Browser에게 응답
+  - Web Browser 및 Cloud Front는 Cache-Control 유효시간동안 같은 요청에 대해 자체적으로 해결
+
+- Cache 무효화(삭제)
+  - 기본적으로 Cloud Front의 default Cache 유효시간은 24시간
+  - Cache 무효화 작업은 비용 발생
+  - Distribution - invalidation
+  - Create invalidation
+    - Object Paths: 경로 또는 파일입력
+      - 경로일시, 해당 경로 하위로는 전부 캐시 삭제
+      - 파일일시, 해당 파일 캐시 전부 삭제
+
+### CDN
+
+- CDN 설정
+
+  - Distribution - General - Edit
+    - Price Class
+      - Use All Edge Locations: 모든 Edge Locations 사용
+      - Use 200 Edge Locations: 200에 해당하는 Edge Locations 사용
+      - Use 100 Edge Locations: 100에 해당하는 Edge Locations 사용
+        <img src="./imgs/egoing/cloud_front_price_class.png" width="850">
+
+- CDN 적용 관련 속도 테스트 사이트: [dotcom-tools](https://www.dotcom-tools.com/website-speed-test.aspx)
+
+- Edge Location?
+
+  - 전세계에 퍼져있는 Cloud Front의 Cache server
+
+### 요금
+
+- 기본요금 X, 사용하는 만큼 비용 발생
+
+  <img src="./imgs/egoing/cloud_front_price.png" width="500">
+
+- 이미지의 2번 3번 요청에 대한 데이터 전송량 및 HTTP 메서드 요청량이 가장 중요한 요금 발생 지표
+
+  - 2번: 리전 데이터를 인터넷으로 전송
+  - 3번: 리전 데이터를 오리진으로 전송
+  - HTTP 메서드: HTTP / HTTPS 요청
+
+- aws 요금 계산을 도와주는 [웹사이드](https://calculator.s3.amazonaws.com/index.html)
+  - cloud front
+    - data transfer out: 2번에 대한 사용량
+    - data transfer out to origin: 3번에 대한 사용량
+
+### 추가 고려 사항
+
+- Domain service (Amazon Route53)
+
+- HTTPS / SSL / TLS (AWS certificate manager)
+
+- Dynamic Page
+  - Cloud Front의 Cookie / Header / GeoIP 등을 활용
+
+## RDS
